@@ -1,0 +1,20 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/ubuntu/ROV-23-24/rov/install/custom_interfaces/local/lib/python3.10/dist-packages",
+        "/home/ubuntu/stem/install/tutorial_interfaces/local/lib/python3.10/dist-packages",
+        "/home/ubuntu/stem/install/custom_interfaces/local/lib/python3.10/dist-packages",
+        "/home/ubuntu/Documents/GitHub/VRX-2023/ust_vrx_phase_3/install/img_processing/lib/python3.10/site-packages",
+        "/home/ubuntu/vrx_ws/install/local/lib/python3.10/dist-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/ubuntu/ROV-23-24/rov/install/custom_interfaces/local/lib/python3.10/dist-packages",
+        "/home/ubuntu/stem/install/tutorial_interfaces/local/lib/python3.10/dist-packages",
+        "/home/ubuntu/stem/install/custom_interfaces/local/lib/python3.10/dist-packages",
+        "/home/ubuntu/Documents/GitHub/VRX-2023/ust_vrx_phase_3/install/img_processing/lib/python3.10/site-packages",
+        "/home/ubuntu/vrx_ws/install/local/lib/python3.10/dist-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ]
+}

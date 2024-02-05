@@ -1,8 +1,7 @@
 import cv2
 import numpy as np
-
 # Initialize the webcam
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 
 if not cap.isOpened():
     print("Error: Could not open webcam.")
@@ -51,22 +50,25 @@ while True:
                 target_y = cy-20   
     frame = image
     height, width = frame.shape[:2]
-    # print("height is ",height)
-    # print("height is ",width)
-    x, y, w, h = 0, 0, 640, 360
-    l = 200
+    print("height is ",height)
+    print("height is ",width)
+    x, y, w, h = 0, 0, width, height
+    l = 50
     color = (0, 255, 0)  # Rectangle color (green)
     thickness = 2  # Rectangle line thickness
     # centre =
-    q1 = [640,0,1280,360]
-    q2 = [0,0,640,360]
-    q3 = [0,360,640,720]
-    q4 = [640,360,1280,720]
-    q5 = [w-l,h-l,w+l,h+l]
+    q1 = [w/2,0,w,h/2]
+    q2 = [0,0,w/2,h/2]
+    q3 = [0,h/2,w/2,h]
+    q4 = [w/2,h/2,w,h]
+    q5 = [w/2-l,h/2-l,w/2+l,h/2+l]
    
     sector = [q1,q2,q3,q4,q5]
     for q in sector:
+        for i in range(4):
+            q[i] = int(q[i])
         cv2.rectangle(frame, (q[0],q[1]),(q[2],q[3]), color)
+        # print(q[0],q[1],q[2],q[3])
     if(q5[0] < target_x and target_x < q5[2] and q5[1] < target_y and target_y < q5[3]):
         print("descend")
     elif(q1[0] < target_x and target_x < q1[2] and q1[1] < target_y and target_y < q1[3]):
