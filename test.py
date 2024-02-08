@@ -3,7 +3,7 @@ import numpy as np
 import rclpy # Python library for ROS 2
 from rclpy.node import Node # Handles the creation of nodes
 from sensor_msgs.msg import Image, Imu, Joy # Image is the message type
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float64MultiArray, Bool
 from cv_bridge import CvBridge # Package to convert between ROS and OpenCV Images
 import math
 from enum import Enum
@@ -65,9 +65,9 @@ class ImageSubscriber(Node):
     self.sub_imu
     self.angle = 0
     self.sub_joy = self.create_subscription(
-       Joy,
-       '/joy',
-       self.joy_callback,
+       Bool,
+       '/rov/auto',
+       self.auto_callback,
        10)
     self.target_angle = 0
     self.target_is_set = False
@@ -78,23 +78,20 @@ class ImageSubscriber(Node):
     self.timer = self.create_timer(0.05,self.timer_callback)
     self.flow = 0    
     self.AUTO = False
-    self.AUTO_IS_PRESSED = False
+    self.arrived = False
+    self.action = 0
   
     # Used to convert between ROS and OpenCV images
     self.br = CvBridge()
-  def joy_callback(self, data):
-     if(data.buttons[8] == 1 and self.AUTO_IS_PRESSED == False):
+  
+  def auto_callback(self,msg):
+     if( msg.data == True):
+        self.AUTO = True
+        self.target_is_set = True
         self.target_angle = self.angle
-        if(self.AUTO == False) :
-           self.AUTO = True
-           self.target_is_set = True
-           self.AUTO_IS_PRESSED = True
-        else:
-           self.AUTO = False
-           self.target_is_set = False
-           self.AUTO_IS_PRESSED = True
-     if(data.buttons[8] == 0 ):
-        self.AUTO_IS_PRESSED = False
+     else:
+        self.AUTO = False
+        self.target_is_set = False
 
   def timer_callback(self):
     thrust_msg = Float64MultiArray()
@@ -119,8 +116,42 @@ class ImageSubscriber(Node):
     else:
        self.flow = 0
        thrust_msg.data = set_motion(0,3)
+
+    des_msg = Float64MultiArray()
+    des_msg.data = [0.0,0.0,0.0,0.0]
+    if(self.action ==0):
+        des_msg.data = set_motion(5,3)
+    elif(self.action == 1):
+       if(self.flow == 0):
+          des_msg.data = set_motion(2,3)
+          self.flow += 1
+       else:
+          self.flow = 0
+          des_msg.data = set_motion(0,3)
+    elif(self.action == 2):
+       if(self.flow == 0):
+          des_msg.data = set_motion(0,3)
+          self.flow += 1
+       else:
+          self.flow = 0
+          des_msg.data = set_motion(3,3)
+    elif(self.action == 3):
+       if(self.flow == 0):
+          self.flow += 1
+          des_msg.data = set_motion(1,3)
+       else:
+          des_msg.data = set_motion(2,3)
+          self.flow = 0
+    elif(self.action == 4):
+       if(self.flow == 0):
+          des_msg.data = set_motion(1,3)
+          self.flow += 1
+       else:
+          des_msg.data =set_motion(3,3)
+          self.flow = 0
+
     if(self.AUTO == True):
-      self.pub_thrust.publish(thrust_msg)
+         self.pub_thrust.publish(des_msg)
   def imu_callback(self, data):
     """     
     double quaternion_to_z_axis_angle(double q[4]){
@@ -157,8 +188,10 @@ class ImageSubscriber(Node):
 
     contours, _ = cv2.findContours(blurred, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     image = frame
-    target_x = 0
-    target_y = 0
+    target_x = -1
+    target_y = -1
+    if(target_x > -1 and target_y > -1):
+       self.arrived = True
     # Iterate over the contours
     for i in contours:
         # Get the bounding rectangle of the contour
@@ -201,17 +234,24 @@ class ImageSubscriber(Node):
         # print(q[0],q[1],q[2],q[3])
     if(q5[0] < target_x and target_x < q5[2] and q5[1] < target_y and target_y < q5[3]):
         print("descend")
+        self.action = 0
     elif(q1[0] < target_x and target_x < q1[2] and q1[1] < target_y and target_y < q1[3]):
-        print("move down and right")    
+        print("move forward and right") 
+        self.action = 1   
     elif(q2[0] < target_x and target_x < q2[2] and q2[1] < target_y and target_y < q2[3]):
-        print("move down and left")    
+        print("move forward and left")
+        self.action = 2    
     elif(q3[0] < target_x and target_x < q3[2] and q3[1] < target_y and target_y < q3[3]):
-        print("move up and left")    
+        print("move backward and left")
+        self.action = 3   
     elif(q4[0] < target_x and target_x < q4[2] and q4[1] < target_y and target_y < q4[3]):
-        print("move up and right")
+        print("move backward and right")
+        self.action = 4
     print(self.angle)
     print(self.target_angle)
-    print(self.target_is_set)
+    print('Auto is ',self.target_is_set)
+    print(target_x)
+    print(target_y)
     # print(thrust)
 
     # Display image
