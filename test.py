@@ -34,12 +34,12 @@ def set_motion(motion,thrust):
 class Motion(Enum):
   FORWARD = 0
   BACKWARD = 1
-  LEFT = 2
-  RIGHT = 3
+  LEFT = 3
+  RIGHT = 2
   UP = 4
   DOWN = 5
-  ROTATE_LEFT = 6
-  ROTATE_RIGHT = 7
+  ROTATE_LEFT = 7
+  ROTATE_RIGHT = 6
 # Initialize the webcam
 
 class ImageSubscriber(Node):
@@ -80,7 +80,7 @@ class ImageSubscriber(Node):
     self.AUTO = False
     self.arrived = False
     self.action = 0
-  
+    self.dist2centre = 0
     # Used to convert between ROS and OpenCV images
     self.br = CvBridge()
   
@@ -97,6 +97,7 @@ class ImageSubscriber(Node):
     thrust_msg = Float64MultiArray()
     thrust_msg.data = [0.0,0.0,0.0,0.0]
     opp_angle = 0
+    thrust = 5
     if(self.target_angle < 0):
         opp_angle = self.target_angle + 2*math.pi -math.pi
     else:
@@ -105,53 +106,59 @@ class ImageSubscriber(Node):
       self.flow = 1
       if(self.target_angle < 0):
           if(self.angle < opp_angle and self.angle > self.target_angle):
-              thrust_msg.data = set_motion(7,3)
+              thrust_msg.data = set_motion(7,1)
           else:
-              thrust_msg.data = set_motion(6,3)
+              thrust_msg.data = set_motion(6,1)
       else:
           if(self.angle < self.target_angle and self.angle > opp_angle):
-              thrust_msg.data = set_motion(6,3)
+              thrust_msg.data = set_motion(6,1)
           else:
-              thrust_msg.data = set_motion(7,3)
+              thrust_msg.data = set_motion(7,1)
     else:
        self.flow = 0
-       thrust_msg.data = set_motion(0,3)
+       thrust_msg.data = set_motion(0,1)
 
     des_msg = Float64MultiArray()
     des_msg.data = [0.0,0.0,0.0,0.0]
+    # des_msg.data = set_motion(6,3)
     if(self.action ==0):
-        des_msg.data = set_motion(5,3)
+        des_msg.data = set_motion(5,thrust)
     elif(self.action == 1):
        if(self.flow == 0):
-          des_msg.data = set_motion(2,3)
+          des_msg.data = set_motion(2,thrust)
           self.flow += 1
        else:
           self.flow = 0
-          des_msg.data = set_motion(0,3)
+          des_msg.data = set_motion(0,thrust)
     elif(self.action == 2):
        if(self.flow == 0):
-          des_msg.data = set_motion(0,3)
+          des_msg.data = set_motion(0,thrust)
           self.flow += 1
        else:
           self.flow = 0
-          des_msg.data = set_motion(3,3)
+          des_msg.data = set_motion(3,thrust)
     elif(self.action == 3):
        if(self.flow == 0):
           self.flow += 1
-          des_msg.data = set_motion(1,3)
+          des_msg.data = set_motion(1,thrust)
        else:
-          des_msg.data = set_motion(2,3)
+          des_msg.data = set_motion(3,thrust)
           self.flow = 0
     elif(self.action == 4):
        if(self.flow == 0):
-          des_msg.data = set_motion(1,3)
+          des_msg.data = set_motion(1,thrust)
           self.flow += 1
        else:
-          des_msg.data =set_motion(3,3)
+          des_msg.data =set_motion(2,thrust)
           self.flow = 0
 
     if(self.AUTO == True):
-         self.pub_thrust.publish(des_msg)
+         if(self.arrived == False):          
+          self.pub_thrust.publish(thrust_msg)
+         else:
+          self.pub_thrust.publish(des_msg)
+    # self.pub_thrust.publish(thrust_msg)
+
   def imu_callback(self, data):
     """     
     double quaternion_to_z_axis_angle(double q[4]){
@@ -190,8 +197,7 @@ class ImageSubscriber(Node):
     image = frame
     target_x = -1
     target_y = -1
-    if(target_x > -1 and target_y > -1):
-       self.arrived = True
+ 
     # Iterate over the contours
     for i in contours:
         # Get the bounding rectangle of the contour
@@ -211,12 +217,14 @@ class ImageSubscriber(Node):
                 cv2.putText(image, 'coor: '+str(cx-20)+','+str(cy-20), (cx-20,cy-20), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0))   
                 target_x = cx-20
                 target_y = cy-20   
+    if(target_x != -1 and target_y != -1):
+       self.arrived = True
     frame = image
     height, width = frame.shape[:2]
     print("height is ",height)
     print("height is ",width)
     x, y, w, h = 0, 0, width, height
-    l = 50
+    l = 25
     color = (0, 255, 0)  # Rectangle color (green)
     thickness = 2  # Rectangle line thickness
     # centre =
@@ -225,14 +233,14 @@ class ImageSubscriber(Node):
     q3 = [0,h/2,w/2,h]
     q4 = [w/2,h/2,w,h]
     q5 = [w/2-l,h/2-l,w/2+l,h/2+l]
-   
+    self.dist2centre = math.sqrt((target_x - w/2)**2 + (target_y - h/2)**2)
     sector = [q1,q2,q3,q4,q5]
     for q in sector:
         for i in range(4):
             q[i] = int(q[i])
         cv2.rectangle(frame, (q[0],q[1]),(q[2],q[3]), color)
         # print(q[0],q[1],q[2],q[3])
-    if(q5[0] < target_x and target_x < q5[2] and q5[1] < target_y and target_y < q5[3]):
+    if(q5[0] <= target_x and target_x < q5[2] and q5[1] < target_y and target_y < q5[3]):
         print("descend")
         self.action = 0
     elif(q1[0] < target_x and target_x < q1[2] and q1[1] < target_y and target_y < q1[3]):
@@ -252,6 +260,9 @@ class ImageSubscriber(Node):
     print('Auto is ',self.target_is_set)
     print(target_x)
     print(target_y)
+    print('Arrived is ',self.arrived)
+    print('action is ',self.action)
+    print('distance to centre is ',self.dist2centre)
     # print(thrust)
 
     # Display image

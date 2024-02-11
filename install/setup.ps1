@@ -27,7 +27,6 @@ _colcon_prefix_chain_powershell_source_script "/home/ubuntu/vrx_ws/install\local
 _colcon_prefix_chain_powershell_source_script "/home/ubuntu/Documents/GitHub/VRX-2023/ust_vrx_phase_3/install\local_setup.ps1"
 _colcon_prefix_chain_powershell_source_script "/home/ubuntu/stem/install\local_setup.ps1"
 _colcon_prefix_chain_powershell_source_script "/home/ubuntu/ros2_ws/install\local_setup.ps1"
-_colcon_prefix_chain_powershell_source_script "/home/ubuntu/ROV-23-24/rov/install\local_setup.ps1"
 
 # source this prefix
 $env:COLCON_CURRENT_PREFIX=(Split-Path $PSCommandPath -Parent)
