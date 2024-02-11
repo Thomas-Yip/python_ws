@@ -7,6 +7,11 @@ from std_msgs.msg import Float64MultiArray, Bool
 from cv_bridge import CvBridge # Package to convert between ROS and OpenCV Images
 import math
 from enum import Enum
+def in_sector(q,target_x,target_y):
+    if(target_x > q[0] and target_x < q[2] and target_y > q[1] and target_y < q[3]):
+        return True
+    else:
+        return False
 def set_motion(motion,thrust):
     data = [0,0,0,0]
     if(motion ==0):
@@ -40,8 +45,13 @@ class Motion(Enum):
   DOWN = 5
   ROTATE_LEFT = 7
   ROTATE_RIGHT = 6
-# Initialize the webcam
-
+  STOP = 8
+class Action(Enum):
+  LEFT = 0
+  CENTRE_FRONT = 1
+  CENTRE = 2
+  CENTRE_BACK = 3
+  RIGHT = 4
 class ImageSubscriber(Node):
   """
   Create an ImageSubscriber class, which is a subclass of the Node class.
@@ -81,6 +91,10 @@ class ImageSubscriber(Node):
     self.arrived = False
     self.action = 0
     self.dist2centre = 0
+    self.x_vel = 0
+    self.y_vel = 0
+    self.height = 0
+    self.width = 0
     # Used to convert between ROS and OpenCV images
     self.br = CvBridge()
   
@@ -97,7 +111,6 @@ class ImageSubscriber(Node):
     thrust_msg = Float64MultiArray()
     thrust_msg.data = [0.0,0.0,0.0,0.0]
     opp_angle = 0
-    thrust = 5
     if(self.target_angle < 0):
         opp_angle = self.target_angle + 2*math.pi -math.pi
     else:
@@ -120,44 +133,22 @@ class ImageSubscriber(Node):
 
     des_msg = Float64MultiArray()
     des_msg.data = [0.0,0.0,0.0,0.0]
-    # des_msg.data = set_motion(6,3)
-    if(self.action ==0):
-        des_msg.data = set_motion(5,thrust)
+    if(self.action == 0):
+        des_msg.data = set_motion(3,self.dist2centre/self.width)
     elif(self.action == 1):
-       if(self.flow == 0):
-          des_msg.data = set_motion(2,thrust)
-          self.flow += 1
-       else:
-          self.flow = 0
-          des_msg.data = set_motion(0,thrust)
+        des_msg.data = set_motion(0,self.dist2centre/self.height)
     elif(self.action == 2):
-       if(self.flow == 0):
-          des_msg.data = set_motion(0,thrust)
-          self.flow += 1
-       else:
-          self.flow = 0
-          des_msg.data = set_motion(3,thrust)
+        des_msg.data = set_motion(5,0.3)
     elif(self.action == 3):
-       if(self.flow == 0):
-          self.flow += 1
-          des_msg.data = set_motion(1,thrust)
-       else:
-          des_msg.data = set_motion(3,thrust)
-          self.flow = 0
+        des_msg.data = set_motion(1,self.dist2centre/self.height)
     elif(self.action == 4):
-       if(self.flow == 0):
-          des_msg.data = set_motion(1,thrust)
-          self.flow += 1
-       else:
-          des_msg.data =set_motion(2,thrust)
-          self.flow = 0
+        des_msg.data = set_motion(2,self.dist2centre/self.width)
 
     if(self.AUTO == True):
-         if(self.arrived == False):          
-          self.pub_thrust.publish(thrust_msg)
-         else:
+        #  if(self.arrived == False):          
+        #   self.pub_thrust.publish(thrust_msg)
+        #  else:
           self.pub_thrust.publish(des_msg)
-    # self.pub_thrust.publish(thrust_msg)
 
   def imu_callback(self, data):
     """     
@@ -170,6 +161,10 @@ class ImageSubscriber(Node):
     X=(2*(q[0]*q[3]+q[1]*q[2]))
     Y=(1-2*(q[2]*q[2]+q[3]*q[3]))
     self.angle =  np.arctan2(-Y,X)
+    self.x_vel += data.linear_acceleration.x*0.001
+    self.y_vel += data.linear_acceleration.y*0.001
+
+
 
    
   def listener_callback(self, data):
@@ -223,47 +218,50 @@ class ImageSubscriber(Node):
     height, width = frame.shape[:2]
     print("height is ",height)
     print("height is ",width)
+    self.width = width
+    self.height = height
     x, y, w, h = 0, 0, width, height
     l = 25
     color = (0, 255, 0)  # Rectangle color (green)
     thickness = 2  # Rectangle line thickness
     # centre =
-    q1 = [w/2,0,w,h/2]
-    q2 = [0,0,w/2,h/2]
-    q3 = [0,h/2,w/2,h]
-    q4 = [w/2,h/2,w,h]
-    q5 = [w/2-l,h/2-l,w/2+l,h/2+l]
+    q_left = [0,0,w/3,h]
+    q_centre_front = [w/3,0,2*w/3,h/4]
+    q_centre = [w/3,h/4,2*w/3,2*h/4]
+    q_centre_back = [w/3,2*h/4,2*w/3,h]
+    q_right = [2*w/3,0,w,h]
+
     self.dist2centre = math.sqrt((target_x - w/2)**2 + (target_y - h/2)**2)
-    sector = [q1,q2,q3,q4,q5]
+    sector = [q_left,q_centre_front,q_centre,q_centre_back,q_right]
     for q in sector:
         for i in range(4):
             q[i] = int(q[i])
         cv2.rectangle(frame, (q[0],q[1]),(q[2],q[3]), color)
-        # print(q[0],q[1],q[2],q[3])
-    if(q5[0] <= target_x and target_x < q5[2] and q5[1] < target_y and target_y < q5[3]):
-        print("descend")
-        self.action = 0
-    elif(q1[0] < target_x and target_x < q1[2] and q1[1] < target_y and target_y < q1[3]):
-        print("move forward and right") 
-        self.action = 1   
-    elif(q2[0] < target_x and target_x < q2[2] and q2[1] < target_y and target_y < q2[3]):
-        print("move forward and left")
-        self.action = 2    
-    elif(q3[0] < target_x and target_x < q3[2] and q3[1] < target_y and target_y < q3[3]):
-        print("move backward and left")
-        self.action = 3   
-    elif(q4[0] < target_x and target_x < q4[2] and q4[1] < target_y and target_y < q4[3]):
-        print("move backward and right")
-        self.action = 4
-    print(self.angle)
-    print(self.target_angle)
+    for q in sector:
+        if(in_sector(q,target_x,target_y)):
+            self.action = sector.index(q)
+            break
+    if(self.action == 0):
+        print('left')
+    elif(self.action == 1):
+        print('centre front')
+    elif(self.action == 2):
+        print('centre')
+    elif(self.action == 3):
+        print('centre back')
+    elif(self.action == 4):
+        print('right')
+
+    print('Angle is ',self.angle)
+    print('Target angle ', self.target_angle)
     print('Auto is ',self.target_is_set)
     print(target_x)
     print(target_y)
     print('Arrived is ',self.arrived)
     print('action is ',self.action)
     print('distance to centre is ',self.dist2centre)
-    # print(thrust)
+    print('x vel is ',self.x_vel)
+    print('y vel is ',self.y_vel) 
 
     # Display image
     cv2.imshow("camera", frame)
@@ -271,6 +269,7 @@ class ImageSubscriber(Node):
 
     
     cv2.waitKey(1)
+
   
 def main(args=None):
   
